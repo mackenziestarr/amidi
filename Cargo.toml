@@ -1,0 +1,9 @@
+[package]
+name = "amidi"
+version = "0.1.0"
+authors = ["mackenziestarr <mackestarr@gmail.com>"]
+
+[dependencies]
+libc = "0.2.0"
+structopt = "0.2"
+hex = "0.3.2"
