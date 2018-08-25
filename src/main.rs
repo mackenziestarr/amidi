@@ -1,18 +1,22 @@
-extern crate libc;
 extern crate hex;
+
 #[macro_use]
 extern crate structopt;
 
 use structopt::StructOpt;
-use libc::{c_int, c_char, c_void};
 
 use std::fmt;
-use std::ptr;
 use std::ffi::CStr;
 use std::str::FromStr;
 
+mod portmidi;
+use portmidi::*;
+
+mod output;
+use output::*;
+
 #[derive(Debug)]
-struct HexData(Vec<u8>);
+struct HexData(pub Vec<u8>);
 
 impl FromStr for HexData {
     type Err = hex::FromHexError;
@@ -22,7 +26,7 @@ impl FromStr for HexData {
     }
 }
 
-/// @todo help message
+/// cli tool for sending data over midi
 #[derive(StructOpt, Debug)]
 #[structopt(name = "amidi")]
 struct Opt {
@@ -37,20 +41,6 @@ struct Opt {
     /// device id to send messages to
     #[structopt(short = "D", long = "device-id")]
     device_id: Option<PmDeviceId>,
-}
-
-type PmDeviceId = i32;
-type PortMidiStream = c_void;
-
-#[derive(Debug)]
-#[repr(C)]
-struct PmDeviceInfo {
-    struct_version : c_int,
-    interface      : *const c_char,
-    name           : *const c_char,
-    input          : c_int,
-    output         : c_int,
-    opened         : c_int,
 }
 
 #[derive(Debug)]
@@ -97,41 +87,6 @@ impl DeviceInfo {
     }
 }
 
-#[derive(Debug, PartialEq)]
-#[repr(C)]
-enum PmError {
-    NoError,
-    NoData,
-    GotData,
-    HostError,
-    InvalidDeviceId,
-    InsufficientMemory,
-    BufferTooSmall,
-    BufferOverflow,
-    BadPtr,
-    BadData,
-    InternalError,
-    BufferMaxSize
-}
-
-
-
-#[link(name = "portmidi")]
-extern "C" {
-    fn Pm_Initialize() -> PmError;
-    fn Pm_Terminate() -> PmError;
-    fn Pm_CountDevices() -> c_int;
-    fn Pm_GetDeviceInfo(id: PmDeviceId) -> *const PmDeviceInfo;
-    fn Pm_Close(stream: *const PortMidiStream) -> PmError;
-    fn Pm_OpenOutput( stream : *const PortMidiStream,
-                      outputDevice : PmDeviceId,
-                      outputDriverInfo : *const c_void,
-                      bufferSize : u32,
-                      time_proc : *const c_void,
-                      time_info : *const c_void,
-                      latency : u32 ) -> PmError;
-
-}
 
 fn print_devices() {
     let count = unsafe {
@@ -148,27 +103,10 @@ fn print_devices() {
     }
 
 }
+    // unsafe {
+    //     Pm_Close(stream);
+    // }
 
-fn send_hex(_hex_data: HexData, device_id: PmDeviceId) {
-    let stream = ptr::null();
-    let err = unsafe {
-        Pm_OpenOutput(
-            stream,
-            device_id,
-            ptr::null(),
-            1024,
-            ptr::null(),
-            ptr::null(),
-            0
-        )
-    };
-    if err != PmError::NoError {
-        panic!("error opening output port: {:?}", err);
-    }
-    unsafe {
-        Pm_Close(stream);
-    }
-}
 
 fn main() {
 
@@ -180,20 +118,18 @@ fn main() {
     }
 
     match Opt::from_args() {
-        Opt{
-            list_devices: true, ..
-        } => print_devices(),
-        Opt{ hex_data:  Some(hex_data),
-             device_id: Some(device_id),
-             ..
-        } => send_hex(hex_data, device_id),
-        _ => println!("ayy"),
+        Opt{ list_devices: true, ..} => print_devices(),
+        Opt{ hex_data:  Some(hex_data), device_id: Some(device_id), ..} => {
+            let output = OutputPort::new(device_id).unwrap();
+            output.send_sysex_msg(hex_data.0.as_slice()).unwrap();
+        }
+        _ => ()
     }
 
     let err = unsafe {
         Pm_Terminate()
     };
     if err != PmError::NoError {
-        panic!("failed to terminate: {:?}r");
+        panic!("failed to terminate: {:?}", err);
     }
 }
