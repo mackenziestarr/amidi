@@ -26,9 +26,9 @@ impl FromStr for HexData {
     }
 }
 
-/// cli tool for sending data over midi
+/// portable cli tool for sending data over midi ports
 #[derive(StructOpt, Debug)]
-#[structopt(name = "amidi")]
+#[structopt(name = "midi")]
 struct Opt {
     /// list available midi devices
     #[structopt(short = "l", long = "list")]

@@ -1,5 +1,5 @@
 [package]
-name = "amidi"
+name = "pmidi"
 version = "0.1.0"
 authors = ["mackenziestarr <mackestarr@gmail.com>"]
 
